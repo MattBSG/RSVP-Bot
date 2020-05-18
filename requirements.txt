@@ -1,0 +1,5 @@
+discord
+pynacl
+motor
+pendulum
+pytz
