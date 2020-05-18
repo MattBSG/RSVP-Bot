@@ -65,3 +65,5 @@ async def _create_reservation(ctx, day, time, tz, desc):
         'description': desc,
         'created_at': pendulum.now('UTC').int_timestamp
     })
+
+    return event_start.format('MMM DD, YYYY at h:mA') + tz.lower()
