@@ -9,3 +9,12 @@ class BadArgument(RSVPException):
 
 class NoPermission(RSVPException):
     pass
+
+class InvalidTz(RSVPException):
+    pass
+
+class InvalidTime(RSVPException):
+    pass
+
+class InvalidDOW(RSVPException):
+    pass
