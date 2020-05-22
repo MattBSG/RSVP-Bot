@@ -1,5 +1,6 @@
 import logging
 import sys
+import pyfiglet
 import pytz
 
 from discord.ext import commands
@@ -9,7 +10,7 @@ import constants
 LOG_FORMAT = '%(levelname)s [%(asctime)s]: %(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=logging.INFO)
 
-logging.info('[RSVP Bot] Starting WoW RSVP Bot - Copyright (C) Matthew Cohen 2020')
+logging.info('[RSVP Bot] Starting WoW RSVP Bot')
 
 # Startup checks
 logging.debug('[RSVP Bot] Running pre-flight')
@@ -44,6 +45,7 @@ class RSVPBot(commands.Cog):
     async def on_ready(self):
         if not self.ready:
             logging.info('[RSVP Bot] Now Ready')
+            print(pyfiglet.color_to_ansi('CYAN', False) + pyfiglet.figlet_format('RSVP Bot') + '\nCopyright (C) Matthew Cohen 2020' + pyfiglet.color_to_ansi('RESET', False))
             self.bot.load_extension('modules.main')
 
             self.ready = True

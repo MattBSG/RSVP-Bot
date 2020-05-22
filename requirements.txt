@@ -3,3 +3,4 @@ pynacl
 motor
 pendulum
 pytz
+pyfiglet

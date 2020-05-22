@@ -18,3 +18,6 @@ class InvalidTime(RSVPException):
 
 class InvalidDOW(RSVPException):
     pass
+
+class NotFound(RSVPException):
+    pass
