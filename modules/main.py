@@ -217,7 +217,6 @@ class Main(commands.Cog, name='RSVP Bot'):
             emoji += f':{payload.emoji.name}:{payload.emoji.id}>'
 
         if emoji not in self.REACT_EMOJI: return
-        print(self.EMOJI_MAPPING[emoji])
         if emoji in [constants.EMOJI_DPS, constants.EMOJI_HEALER, constants.EMOJI_TANK]:
             for participant in rsvp_msg['participants']:
                 if participant['user'] != payload.user_id: continue
@@ -289,11 +288,6 @@ class Main(commands.Cog, name='RSVP Bot'):
                 }})
 
             return await utility._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
-
-
-    @commands.Cog.listener()
-    async def on_reaction_remove(reaction, user):
-        pass
 
 def setup(bot):
     bot.add_cog(Main(bot))
