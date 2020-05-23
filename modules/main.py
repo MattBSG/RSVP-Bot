@@ -171,8 +171,22 @@ class Main(commands.Cog, name='RSVP Bot'):
             await rsvp_message.add_reaction(emoji)
 
     @_rsvp.command(name='alias')
-    async def _rsvp_alias(self, mode, member: discord.Member, newname):
-        pass
+    @commands.check(_allowed)
+    async def _rsvp_alias(self, ctx, mode, member: discord.Member, alias):
+        mode = mode.lower()
+        if mode not in ['set', 'clear']:
+            # Invalid mode
+            await ctx.send(f'{ctx.author.mention} :x: Provided mode "{mode}" is not valid. Must be either "set" or "clear"')
+
+        new_alias = alias if mode == 'set' else None
+        await mclient.rsvpbot.users.update_one({'_id': member.id}, {
+            '$set': {
+                'alias': alias
+            }
+        }, upsert=True)
+
+        text_mode = mode if new_alias else 'cancelled'
+        await ctx.send(f'{ctx.author.mention} :white_check_mark: Success! Alias for {member} has been set to `{alias}`')
 
     @_rsvp.command(name='invite-msg')
     async def _rsvp_invite_msg(self, ctx, *, content):
