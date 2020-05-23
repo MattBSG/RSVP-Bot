@@ -107,14 +107,19 @@ class Main(commands.Cog, name='RSVP Bot'):
 
     @commands.command(name='setup')
     async def _setup(self, ctx):
+        """
+        Perform server setup with RSVP Bot.
+        Can be used to setup the bot for the first time, or to change settings.
+        Example usage:
+            setup
+        """
         db = mclient.rsvpbot.config
 
         app_info = await self.bot.application_info()
         if ctx.author.id not in [app_info.owner.id, ctx.guild.owner.id]:
             return await ctx.send(f'{ctx.author.mention} You must be the owner of this server or bot to use this command')
 
-        if await db.find_one({'_id': ctx.guild.id}):
-            return await ctx.send(f'{ctx.author.mention} This server has already been setup!')
+        setup = await db.find_one({'_id': ctx.guild.id})
 
         try:
             rsvp_channel = await self.msg_wait(ctx, [x.id for x in ctx.guild.channels], _int=True, content=f'Hi, I\'m RSVP Bot. Let\'s get your server setup to use raid rsvp features. First off, what channel would you like RSVP signups in? Please send the channel ID (i.e. {ctx.guild.channels[0].id}).')
@@ -123,12 +128,22 @@ class Main(commands.Cog, name='RSVP Bot'):
             await self.msg_wait(ctx, ['confirm'], content=f'Lets get some roles that will have admin priviledges; you can specify just one or as many as you would like. Once you have the roles created please gather their IDs. Let me know once you have them by replying "confirm".', timeout=180.0)
             rsvp_admins = await self.msg_wait(ctx, [x.id for x in ctx.guild.roles], _int=True, _list=True, content=f'Awesome. Please send the IDs of all roles that should have admin priviledges. This can be just one ID, or a comma seperated list (i.e. id1, id2, id3).', timeout=120.0)
 
-            await mclient.rsvpbot.config.insert_one({
-                '_id': ctx.guild.id,
-                'rsvp_channel': rsvp_channel,
-                'info_channel': info_channel,
-                'access_roles': [rsvp_admins] if isinstance(rsvp_admins, int) else rsvp_admins
-            })
+            if setup:
+                await mclient.rsvpbot.config.insert_one({
+                    '_id': ctx.guild.id,
+                    'rsvp_channel': rsvp_channel,
+                    'info_channel': info_channel,
+                    'access_roles': [rsvp_admins] if isinstance(rsvp_admins, int) else rsvp_admins
+                })
+
+            else:
+                await mclient.rsvpbot.config.update_one({'_id': ctx.guild.id}, {
+                    '_id': ctx.guild.id,
+                    'rsvp_channel': rsvp_channel,
+                    'info_channel': info_channel,
+                    'access_roles': [rsvp_admins] if isinstance(rsvp_admins, int) else rsvp_admins
+                })
+
             return await ctx.send(f'All set! Your guild has been setup. Use the `{ctx.prefix}help` command for a list of commands')
 
         except exceptions.UserCanceled:
@@ -149,7 +164,6 @@ class Main(commands.Cog, name='RSVP Bot'):
         """
         config = await mclient.rsvpbot.config.find_one({'_id': ctx.guild.id})
 
-        # TEMP FLOW
         time_to, rsvp_message = await utility._create_reservation(self.bot, ctx, day, time, timezone, description)
 
         await ctx.send(f'Success! Event created starting {time_to}')
