@@ -75,7 +75,8 @@ async def _create_reservation(bot, ctx, day, time, tz, desc):
         'timezone': tz.lower(),
         'description': desc,
         'created_at': pendulum.now('UTC').int_timestamp,
-        'participants': []
+        'participants': [],
+        'active': True
     }
     rsvp_message = await _rsvp_embed(bot, ctx.guild, data=rsvp_event)
     rsvp_event['_id'] = rsvp_message.id
