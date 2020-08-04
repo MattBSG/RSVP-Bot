@@ -4,13 +4,65 @@ import logging
 import motor.motor_asyncio
 import pendulum
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import constants
 import exceptions
 from modules import utility
 
 mclient = motor.motor_asyncio.AsyncIOMotorClient(constants.MONGO_URI)
+class Background(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self._rsvp_triggers.start() #pylint: disable=no-member
+
+    def cog_unload(self):
+        self._rsvp_triggers.stop() #pylint: disable=no-member
+
+    @tasks.loop(minutes=1)
+    async def _rsvp_triggers(self):
+        reservations = mclient.rsvpbot.reservations.find({'active': True})
+        for rsvp in reservations:
+            config = mclient.rsvpbot.config.find_one({'_id': rsvp['guild']})
+            start_date = pendulum.from_timestamp(rsvp['date'], tz=utility.timezone_alias(rsvp['timezone']))
+            current_date = pendulum.now(utility.timezone_alias(rsvp['timezone']))
+
+            date_diff = current_date - start_date
+            human_diff = current_date.subtract(seconds=date_diff.seconds).diff_for_humans()
+            if date_diff.seconds <= 7200 and not rsvp['admin_reminder']: # 2 hours prior, and first notification
+                participant_count = len(rsvp["participants"])
+                tanks = 0
+                healers = 0
+                dps = 0
+
+                for user in rsvp['participants']:
+                    if user['type'] == 'tank':
+                        tanks += 1
+
+                    elif user['type'] == 'healer':
+                        healers += 1
+                    
+                    elif user['type'] == 'dps':
+                        dps += 1
+
+                if tanks < constants.TANK_COUNT or healers < constants.HEALER_COUNT or dps < constants.DPS_COUNT or participant_count < constants.TOTAL_COUNT:
+                    alert_roles = []
+                    for x in config['access_roles']:
+                        alert_roles.append(f'<@&{x}>')
+
+                    role_mentions = ' '.join(alert_roles)
+                    admin_channel = self.bot.get_channel(config['admin_channel'])
+                    try:
+                        await admin_channel.send(f'{role_mentions} Raid event notification: scheduled raid {human_diff} has less members than minimum threshold for an event.' \
+                                                 f':man_raising_hand: **{participant_count}** users are signed up. Of these there are **{tanks}** {constants.EMOJI_TANK}tanks, ' \
+                                                 f'**{healers}** {constants.EMOJI_HEALER}healers, and **{dps}** {constants.EMOJI_DPS}dps.')
+
+                    except discord.Forbidden:
+                        if admin_channel:
+                            logging.error(f'[RSVP Bot] Unable to send low player count alert to admins. Guild ({admin_channel.guild}) | Channel ({admin_channel.channel}), aborted')
+
+            if date_diff.seconds <= 900 and not rsvp['user_reminder']: # 15 minutes prior, and first notification
+                pass
 
 class Main(commands.Cog, name='RSVP Bot'):
     def __init__(self, bot):
