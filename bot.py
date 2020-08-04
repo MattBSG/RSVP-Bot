@@ -50,6 +50,14 @@ class RSVPBot(commands.Cog):
 
             self.ready = True
 
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, commands.errors.CommandNotFound):
+            pass # Ignore
+
+        else:
+            raise error
+
 try:
     BOT.add_cog(RSVPBot(BOT))
     BOT.run(constants.DISCORD_TOKEN)
