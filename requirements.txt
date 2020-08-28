@@ -1,6 +1,6 @@
-discord
+discord.py
 pynacl
-motor
 pendulum
 pytz
 pyfiglet
+git+https://github.com/cjboyle/tinymongo # tinymongo fork with tinydb v4 support
