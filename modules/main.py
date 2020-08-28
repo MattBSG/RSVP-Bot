@@ -128,6 +128,33 @@ class Main(commands.Cog, name='RSVP Bot'):
             constants.EMOJI_LEADER: 'host',
             constants.EMOJI_CONFIRMED: 'confirmed'
         }
+        self._recurring_event_trigger.start() #pylint: disable=no-member
+
+    def cog_unload(self):
+        self._recurring_event_trigger.stop() #pylint: disable=no-member
+
+    @tasks.loop(seconds=10)
+    async def _recurring_event_trigger(self):
+        db = mclient.rsvpbot.recurring
+        for rule in db.find({}):
+            if pendulum.now(tz=utility.timezone_alias(rule['timezone'])).int_timestamp >= rule['next_run']: # Up for event posting
+                if rule['freq'] == 'daily':
+                    await self._create_reservation(day=rule['next_run'] + (60 * 60 * 24), tz=utility.timezone_alias(rule['timezone']), desc=rule['description'], recurr=rule)
+                    db.update_one({'_id': rule['_id']}, {'$set': {
+                        'next_run': rule['next_run'] + (60 * 60 * 24)
+                    }})
+
+                elif rule['freq'] == 'weekly':
+                    await self._create_reservation(day=rule['next_run'] + (60 * 60 * 24 * 7), tz=utility.timezone_alias(rule['timezone']), desc=rule['description'], recurr=rule)
+                    db.update_one({'_id': rule['_id']}, {'$set': {
+                        'next_run': rule['next_run'] + (60 * 60 * 24 * 7)
+                    }})
+
+                else: # biweekly - run every 2 weeks, making a rsvp the next week
+                    await self._create_reservation(day=rule['next_run'] + (60 * 60 * 24 * 7), tz=utility.timezone_alias(rule['timezone']), desc=rule['description'], recurr=rule)
+                    db.update_one({'_id': rule['_id']}, {'$set': {
+                        'next_run': rule['next_run'] + (60 * 60 * 24 * 14)
+                    }})
 
     async def msg_wait(self, ctx, values: list, _int=False, _list=False, content=None, embed=None, timeout=60.0):
         def check(m):
@@ -191,16 +218,13 @@ class Main(commands.Cog, name='RSVP Bot'):
         guild = mclient.rsvpbot.config.find_one({'_id': ctx.guild.id})
 
         if not guild:
-            print('guild not setup')
             # Guild not setup, command not allowed
             return False
 
         for role in ctx.author.roles:
-            print(role)
             if role.id in guild['access_roles']:
                 return True
 
-        print('didnt find admin role')
         return False
 
     async def _rsvp_embed(self, bot, guild, rsvp=0, *, data=None):
@@ -246,13 +270,12 @@ class Main(commands.Cog, name='RSVP Bot'):
                 'participants': participants
             }
 
-        embed.description = f'{data["description"]}\n\n:man_raising_hand: {len(data["participants"])} Players signed up\n' \
+        embed.description = f'{data["description"]}\n\n:man_raising_hand: {len(data["participants"])} Player{utility.plural(len(data["participants"]))} signed up\n' \
                             f':alarm_clock: Scheduled to start **{data["date"].format("MMM Do, Y at h:mmA")} {data["timezone"].capitalize()}**'
         tanks = []
         healers = []
         dps = []
         for player in data['participants']:
-            print(player)
             user = player
             status = user['status']
             if user['alias']:
@@ -282,70 +305,84 @@ class Main(commands.Cog, name='RSVP Bot'):
         embed.add_field(name='How to signup', value=f'To RSVP for this event please react below with the role you will ' \
         f'be playing; {constants.EMOJI_TANK}Tank, {constants.EMOJI_HEALER}Healer, or {constants.EMOJI_DPS}DPS.\n' \
         f'If you are not sure if you can make the event, react with your role as well as {constants.EMOJI_TENTATIVE}tentative. ' \
-        f'Excepting to be __late__ for the event? React with your role as well as {constants.EMOJI_LATE}late.\n\n' \
-        f'You may react {constants.EMOJI_CANCEL} to cancel your RSVP at any time. Should you want to unmark yourself as tentative ' \
-        f'or late simply react again. More information found in <#{guild_doc["info_channel"]}>'
+        f'Expecting to be __late__ for the event? React with your role as well as {constants.EMOJI_LATE}late.\n\n' \
+        f'Should you want to unmark yourself as tentative or late simply react again. ' \
+        f'You may react {constants.EMOJI_CANCEL} to cancel your RSVP at any time. More information found in <#{guild_doc["info_channel"]}>'
         )
 
-        rsvp_channel = bot.get_channel(guild_doc['rsvp_channel'])
+        rsvp_channel = self.bot.get_channel(guild_doc['rsvp_channel'])
         if rsvp:
-            message = await rsvp_channel.fetch_message(rsvp) # TODO: check if message exists first
-            await message.edit(embed=embed)
+            try:
+                message = await rsvp_channel.fetch_message(rsvp)
+                await message.edit(embed=embed)
+
+            except (discord.NotFound, discord.Forbidden):
+                logging.error(f'[Main] Unable to fetch RSVP message {rsvp}, resending! Was it deleted?')
+                message = await rsvp_channel.send(embed=embed)
 
         else:
             message = await rsvp_channel.send(embed=embed)
 
         return message
 
-    async def _create_reservation(self, bot, ctx, day, time, tz, desc):
-        if tz.lower() in constants.TIMEZONE_ALIASES:
-            timezone = pendulum.timezone(constants.TIMEZONE_ALIASES[tz.lower()])
+    async def _create_reservation(self, bot=None, ctx=None, day=None, time=None, tz=None, desc=None, recurr=None):
+        if recurr:
+            event_start = pendulum.from_timestamp(day, tz=tz)
+
 
         else:
+            if tz.lower() in constants.TIMEZONE_ALIASES:
+                timezone = pendulum.timezone(constants.TIMEZONE_ALIASES[tz.lower()])
+
+            else:
+                try:
+                    timezone = pendulum.timezone(tz.lower())
+
+                except pendulum.tz.zoneinfo.exceptions.InvalidTimezone:
+                    raise exceptions.InvalidTz
+
+            current_time = pendulum.now(timezone)
+
             try:
-                timezone = pendulum.timezone(tz.lower())
+                event_time = pendulum.parse(time, tz=timezone, strict=False).on(current_time.year, current_time.month, current_time.day)
 
-            except pendulum.tz.zoneinfo.exceptions.InvalidTimezone:
-                raise exceptions.InvalidTz
+            except pendulum.parsing.exceptions.ParserError:
+                raise exceptions.InvalidTime
 
-        current_time = pendulum.now(timezone)
+            if day.lower() not in constants.DAY_MAPPING:
+                raise exceptions.InvalidDOW
 
-        try:
-            event_time = pendulum.parse(time, tz=timezone, strict=False).on(current_time.year, current_time.month, current_time.day)
+            if current_time.day_of_week == constants.DAY_MAPPING[day.lower()] and event_time > current_time:
+                # Same as today, but in future
+                event_start = event_time
 
-        except pendulum.parsing.exceptions.ParserError:
-            raise exceptions.InvalidTime
-
-        if day.lower() not in constants.DAY_MAPPING:
-            raise exceptions.InvalidDOW
-
-        if current_time.day_of_week == constants.DAY_MAPPING[day.lower()] and event_time > current_time:
-            # Same as today, but in future
-            event_start = event_time
-
-        else:
-            # In the future or current day (but already elasped)
-            event_start = event_time.next(constants.DAYS[constants.DAY_MAPPING[day.lower()]]).at(event_time.hour, event_time.minute)
+            else:
+                # In the future or current day (but already elasped)
+                event_start = event_time.next(constants.DAYS[constants.DAY_MAPPING[day.lower()]]).at(event_time.hour, event_time.minute)
 
         rsvp_event = {
-            'host': ctx.author,
-            'channel': ctx.channel.id,
-            'guild': ctx.guild.id,
+            'host': ctx.author if not recurr else recurr['host'],
+            'channel': ctx.channel.id if not recurr else recurr['channel'],
+            'guild': ctx.guild.id if not recurr else recurr['guild'],
             'date': event_start,
-            'timezone': tz.lower(),
+            'timezone': utility.timezone_alias(tz),
             'description': desc,
             'created_at': pendulum.now('UTC').int_timestamp,
             'participants': [],
             'admin_reminder': False,
             'user_reminder': False,
-            'active': True
+            'active': True,
+            'recurring': None if not recurr else recurr['_id']
         }
-        rsvp_message = await self._rsvp_embed(bot, ctx.guild, data=rsvp_event)
+        rsvp_message = await self._rsvp_embed(bot, ctx.guild if not recurr else self.bot.get_guild(recurr['guild']), data=rsvp_event)
         rsvp_event['_id'] = rsvp_message.id
-        rsvp_event['host'] = ctx.author.id
+        rsvp_event['host'] = ctx.author.id if not recurr else recurr['host']
         rsvp_event['date'] = event_start.int_timestamp
 
         mclient.rsvpbot.reservations.insert_one(rsvp_event)
+
+        for emoji in self.REACT_EMOJI:
+            await rsvp_message.add_reaction(emoji)
 
         return event_start.format('MMM Do, Y at h:mmA') + ' ' + tz.lower().capitalize(), rsvp_message
 
@@ -398,12 +435,9 @@ class Main(commands.Cog, name='RSVP Bot'):
         except exceptions.UserCanceled:
             return
 
-        except discord.Forbidden:
+        except (discord.Forbidden, discord.NotFound):
             logging.error(f'[RSVP Bot] Unable to respond to setup command. Guild ({ctx.guild}) | Channel ({ctx.channel}), aborted')
             return
-
-        except Exception as e:
-            print(e)
 
     @commands.group(name='rsvp', invoke_without_command=True)
     @commands.check(_allowed)
@@ -421,8 +455,100 @@ class Main(commands.Cog, name='RSVP Bot'):
         time_to, rsvp_message = await self._create_reservation(self.bot, ctx, day, time, timezone, description)
 
         await ctx.send(f'Success! Event created starting {time_to}')
-        for emoji in self.REACT_EMOJI:
-            await rsvp_message.add_reaction(emoji)
+
+    @_rsvp.group(name='recurr', invoke_without_command=True)
+    @commands.check(_allowed)
+    async def _rsvp_recurr(self, ctx, reservation: typing.Union[int, str], frequency):
+        """
+        Set an event to recurr daily, weekly, or biweekly.
+
+        Takes a message for an event and makes it recurr for an internal of time.
+        Example usage:
+            rsvp recurr 748995539026182296 daily
+            rsvp recurr 748994176124977173 weekly
+            rsvp recurr https://discordapp.com/channels/314857672585248768/314857672585248768/748993895131775057 biweekly
+        """
+        frequency = frequency.lower()
+        if frequency not in ['daily', 'weekly', 'biweekly']:
+            return await ctx.send(f':x: {ctx.author.mention} The provided frequency "{frequency}" is not valid. It should be either "daily", "weekly", or "biweekly"')
+
+        db = mclient.rsvpbot.recurring
+        if isinstance(reservation, int):
+            rsvp = mclient.rsvpbot.reservations.find_one({'_id': reservation})
+
+        else: # String
+            match = re.search(r'https:\/\/\w*\.?discord(?:app)?.com\/channels\/\d+\/\d+\/(\d+)', reservation, flags=re.I)
+            if not match:
+                return await ctx.send(f':x: {ctx.author.mention} The reservation provided is invalid. Make sure you use a message ID or message link')
+
+            rsvp = mclient.rsvpbot.reservations.find_one({'_id': int(match.group(1))})
+
+        if not rsvp:
+            return await ctx.send(f':x: {ctx.author.mention} The provided message is not a reservation')
+
+        recurr = db.find_one({'description': rsvp['description']})
+        if recurr:
+            return await ctx.send(f':x: {ctx.author.mention} That event is already recurring {recurr["freq"]}. If you wish to change the frequency, you must stop it from recurring first. '\
+                            f'See `{ctx.prefix}help rsvp recurr` for more info')
+
+        if frequency in ['daily', 'weekly']:
+            next_run = rsvp['date']
+
+        else: # biweekly
+            next_run = rsvp['date'] + (60 * 60 * 24 * 7) # 1 week delay
+
+        doc = db.insert_one({
+            'freq': frequency,
+            'next_run': next_run,
+            'host': rsvp['host'],
+            'channel': rsvp['channel'],
+            'guild': rsvp['guild'],
+            'timezone': rsvp['timezone'],
+            'description': rsvp['description'],
+        })
+        mclient.rsvpbot.reservations.update_one({'_id': rsvp['_id']}, {
+            'recurring': doc.inserted_id
+        })
+
+        await ctx.send(f':white_check_mark: Success! The event will now recurr **{frequency}**')
+
+    @_rsvp_recurr.command(name='stop')
+    @commands.check(_allowed)
+    async def _rsvp_recurr_stop(self, ctx, reservation: typing.Union[int, str]):
+        """
+        Stops an event from recurring.
+
+        Takes a message for any reservation in the recurring series and stops it from recurring
+        further. Will not cancel events in the series that currently have reservations open.
+        Example usage:
+            rsvp recurr stop 748993895131775057
+            rsvp recurr stop https://discordapp.com/channels/314857672585248768/314857672585248768/748995539026182296
+        """
+        if isinstance(reservation, int):
+            rsvp = mclient.rsvpbot.reservations.find_one({'_id': reservation})
+
+        else: # String
+            match = re.search(r'https:\/\/\w*\.?discord(?:app)?.com\/channels\/\d+\/\d+\/(\d+)', reservation, flags=re.I)
+            if not match:
+                return await ctx.send(f':x: {ctx.author.mention} The reservation provided is invalid. Make sure you use a message ID or message link')
+
+            rsvp = mclient.rsvpbot.reservations.find_one({'_id': int(match.group(1))})
+
+        if not rsvp:
+            return await ctx.send(f':x: {ctx.author.mention} The provided message is not a reservation')
+
+        if not rsvp['recurring']:
+            return await ctx.send(f':x: {ctx.author.mention} The provided event reservation is not currently recurring')
+
+        recurr = mclient.rsvpbot.recurring.find_one({'_id': rsvp['recurring']})
+        if not recurr:
+            # This would be caused by an event previously recurring, but is not currently
+            return await ctx.send(f':x: {ctx.author.mention} The provided event reservation is not currently recurring')
+
+        mclient.rsvpbot.recurring.delete_one({'_id': recurr['_id']})
+
+        await ctx.send(f':white_check_mark: {ctx.author.mention} Success! The event is no longer recurring. Any active reservations part of this series will '\
+                        'still continue to function until canceled')
 
     @_rsvp.command(name='alias')
     @commands.check(_allowed)
@@ -438,7 +564,7 @@ class Main(commands.Cog, name='RSVP Bot'):
         mode = mode.lower()
         if mode not in ['set', 'clear']:
             # Invalid mode
-            await ctx.send(f':x: {ctx.author.mention} Provided mode "{mode}" is not valid. Must be either "set" or "clear"')
+            await ctx.send(f':x: {ctx.author.mention} The provided mode "{mode}" is not valid. It should be either "set" or "clear"')
 
         if mode == 'set': 
             if not alias: await ctx.send(f':x: {ctx.author.mention} A name to alias this user to is required')
@@ -481,7 +607,7 @@ class Main(commands.Cog, name='RSVP Bot'):
             }
         })
 
-        await ctx.send(f':white_check_mark: {ctx.author.mention}  Success! RSVP invite message set: ```\n{content}```')
+        await ctx.send(f':white_check_mark: {ctx.author.mention} Success! RSVP invite message set: ```\n{content}```')
 
     @_rsvp.command(name='cancel')
     @commands.check(_allowed)
@@ -502,7 +628,7 @@ class Main(commands.Cog, name='RSVP Bot'):
             if not match:
                 return await ctx.send(f':x: {ctx.author.mention} The message provided is invalid. Make sure you use a message ID or message link')
 
-            messageID = match.group(1)
+            messageID = int(match.group(1))
 
         reservation = mclient.rsvpbot.reservations.find_one({'_id': messageID})
         if not reservation:
@@ -526,7 +652,7 @@ class Main(commands.Cog, name='RSVP Bot'):
         embed = rsvp_message.embeds[0]
         embed.color = 0xB84444
         embed.title = '[Canceled] ' + embed.title
-        embed.remove_field(3)
+        embed.remove_field(3) # How-to-signup field
 
         await rsvp_message.edit(embed=embed)
         await rsvp_message.clear_reactions()
@@ -554,7 +680,6 @@ class Main(commands.Cog, name='RSVP Bot'):
 
         if emoji not in self.REACT_EMOJI: return
         if emoji in [constants.EMOJI_DPS, constants.EMOJI_HEALER, constants.EMOJI_TANK]:
-            print(rsvp_msg)
             for participant in rsvp_msg['participants']:
                 if participant['user'] != payload.user_id: continue
                 db.update_one({'_id': payload.message_id}, {
@@ -636,11 +761,11 @@ class Main(commands.Cog, name='RSVP Bot'):
 def setup(bot):
     bot.add_cog(Main(bot))
     logging.info('[Extension] Main module loaded')
-    #bot.add_cog(Background(bot))
+    bot.add_cog(Background(bot))
     logging.info('[Extension] Background task module loaded')
 
 def teardown(bot):
     bot.remove_cog('Main')
     logging.info('[Extension] Main module unloaded')
-    #bot.remove_cog('Background')
+    bot.remove_cog('Background')
     logging.info('[Extension] Background task module unloaded')
