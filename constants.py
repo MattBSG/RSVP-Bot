@@ -20,14 +20,36 @@ TIMEZONE_ALIASES = {
     'pacific': 'America/Los_Angeles'
 }
 
+# Emoji settings. Replace with a direct unicode emoji like 🙂 or
+# a custom emoji from your server in discord's format, <:name:id>.
+# You can get a custom emoji's ID or unicode character by putting a
+# backslash "\" before it like so: \:happy:
+# Example value: <:confirmed:713126195335790672
+EMOJI_TENTATIVE = '<:tentative:712499040767574037>'
+EMOJI_LATE = '<:late:712499040339886151>'
+EMOJI_CANCEL = '<:cancel:712499040633487441>'
+EMOJI_CONFIRMED = '<:confirmed:713126195335790672>'
+EMOJI_LEADER = '<:leader:713126195322945636>'
+EMOJI_TANK = '<:tank:712499040943865886>'
+EMOJI_HEALER = '<:healer:712499040667041816>'
+EMOJI_DPS = '<:dps:712499040528498810>'
 
+# Low player count alert thresholds. These thresholds are the
+# number of players in each class and overall that should be
+# required as a minimum. If a count is lower than a set value,
+# admin roles will be notified 2 hours prior to the event.
+# Should be an integer, i.e. 6
+TANK_COUNT = 2
+HEALER_COUNT = 2
+DPS_COUNT = 8
+TOTAL_COUNT = 10
 
 ##############################################
 #              CONFIG CONSTANTS              #
 #  ONLY EDIT IF YOU KNOW WHAT YOU ARE DOING  #
 ##############################################
-MONGO_URI = 'mongodb://root:rsvpbot@db:27017/?authSource=admin'
 import pendulum
+
 DAYS = {
     0: pendulum.SUNDAY,
     1: pendulum.MONDAY,
