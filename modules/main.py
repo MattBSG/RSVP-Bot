@@ -31,10 +31,9 @@ class Background(commands.Cog):
             start_date = pendulum.from_timestamp(rsvp['date'], tz=utility.timezone_alias(rsvp['timezone']))
             current_date = pendulum.now(utility.timezone_alias(rsvp['timezone']))
 
-            date_diff = current_date - start_date
-            human_diff = current_date.subtract(seconds=date_diff.seconds).diff_for_humans()
+            date_diff = start_date - current_date
+            human_diff = current_date.add(seconds=date_diff.seconds).diff_for_humans()
             if date_diff.seconds <= 7200 and not rsvp['admin_reminder']: # 2 hours prior, and first notification
-                print('admin reminder due')
                 participant_count = len(rsvp["participants"])
                 tanks = 0
                 healers = 0
@@ -51,17 +50,18 @@ class Background(commands.Cog):
                         dps += 1
 
                 if tanks < constants.TANK_COUNT or healers < constants.HEALER_COUNT or dps < constants.DPS_COUNT or participant_count < constants.TOTAL_COUNT:
-                    print('admin alert')
                     alert_roles = []
                     for x in config['access_roles']:
                         alert_roles.append(f'<@&{x}>')
 
                     role_mentions = ' '.join(alert_roles)
                     admin_channel = self.bot.get_channel(config['admin_channel'])
+
+
                     try:
-                        await admin_channel.send(f'{role_mentions} Raid event notification: scheduled raid {human_diff} has less members than minimum threshold for an event.' \
-                                                 f':man_raising_hand: **{participant_count}** users are signed up. Of these there are **{tanks}** {constants.EMOJI_TANK}tanks, ' \
-                                                 f'**{healers}** {constants.EMOJI_HEALER}healers, and **{dps}** {constants.EMOJI_DPS}dps.')
+                        await admin_channel.send(f'{role_mentions} Raid event notification: scheduled raid {human_diff} has less members than minimum threshold for an event.\n' \
+                                                 f':man_raising_hand: **{participant_count}** user{utility.plural(participant_count)} {"is" if participant_count == 1 else "are"} signed up. Of these there are ' \
+                                                 f'**{tanks}** {constants.EMOJI_TANK}tank{utility.plural(tanks)}, **{healers}** {constants.EMOJI_HEALER}healer{utility.plural(healers)}, and **{dps}** {constants.EMOJI_DPS}dps.')
 
                     except discord.Forbidden:
                         if admin_channel:
