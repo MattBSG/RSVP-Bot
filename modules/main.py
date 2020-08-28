@@ -24,7 +24,6 @@ class Background(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def _rsvp_triggers(self):
-        print('start task')
         reservations = mclient.rsvpbot.reservations.find({'active': True})
         for rsvp in reservations:
             config = mclient.rsvpbot.config.find_one({'_id': rsvp['guild']})
@@ -72,7 +71,40 @@ class Background(commands.Cog):
                     }})
 
             if date_diff.seconds <= 900 and not rsvp['user_reminder']: # 15 minutes prior, and first notification
-                pass # TODO
+                rsvp_channel = self.bot.get_channel(config['rsvp_channel'])
+                users = [f'<@!{u["user"]}>' for u in rsvp['participants']]
+                await rsvp_channel.send(f':bellhop: Event starting soon! {mclient.rsvpbot.config.find_one({"_id": rsvp["guild"]})["invite_message"]}\n\n{", ".join(users)}')
+
+                mclient.rsvpbot.reservations.update_one({'_id': rsvp['_id']}, {'$set': {
+                    'user_reminder': True
+                }})
+
+            if date_diff.seconds <= 0:
+                try:
+                    rsvp_message = await self.bot.get_channel(rsvp['channel']).fetch_message(rsvp['_id'])
+
+                except (discord.NotFound, discord.Forbidden, AttributeError) as e:
+                    logging.error(f'[Main] Unable to edit reservation message after it has started. Error from Discord: {e}')
+                    mclient.rsvpbot.reservations.update_one({'_id': rsvp['_id']}, {
+                        '$set': {
+                            'active': False
+                        }
+                    })
+                    continue
+
+                mclient.rsvpbot.reservations.update_one({'_id': rsvp['_id']}, {
+                    '$set': {
+                        'active': False
+                    }
+                })
+
+                embed = rsvp_message.embeds[0]
+                embed.color = 0x378092
+                embed.title = '[Locked] ' + embed.title
+                embed.remove_field(3) # How-to-signup field
+
+                await rsvp_message.edit(embed=embed)
+                await rsvp_message.clear_reactions()
 
 class Main(commands.Cog, name='RSVP Bot'):
     def __init__(self, bot):
