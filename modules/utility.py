@@ -35,6 +35,13 @@ def field_pull(field, old, _dict=False):
         newList[:] = [d for d in newList if d.get(old[0]) != old[1]]
         return newList
 
+def plural(_int):
+    if 0 < _int < 2:
+        return ''
+
+    else:
+        return 's'
+
 """
 {
     date: pendulum.Date,
