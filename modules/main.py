@@ -758,6 +758,18 @@ class Main(commands.Cog, name='RSVP Bot'):
 
             return await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
 
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        cmd_str = ctx.command.full_parent_name + ' ' + ctx.command.name if ctx.command.parent else ctx.command.name
+        if isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send(f':x: {ctx.author.mention} You are missing one or more required arguments. See `{ctx.prefix}help {cmd_str}`')
+
+        elif isinstance(error, commands.BadArgument) or isinstance(error, commands.BadUnionArgument):
+            await ctx.send(f':x: {ctx.author.mention} One or more provided arguments are invalid. See `{ctx.prefix}help {cmd_str}`')
+
+        elif isinstance(error, commands.CheckFailure):
+            await ctx.send(f':x: {ctx.author.mention} You do not have permission to run that command. See `{ctx.prefix}help` for commands you have access to')
+
 def setup(bot):
     bot.add_cog(Main(bot))
     logging.info('[Extension] Main module loaded')
