@@ -474,17 +474,17 @@ class Main(commands.Cog, name='RSVP Bot'):
 
         db = mclient.rsvpbot.recurring
         if isinstance(reservation, int):
-            rsvp = mclient.rsvpbot.reservations.find_one({'_id': reservation})
+            rsvp = mclient.rsvpbot.reservations.find_one({'_id': reservation, 'active': True})
 
         else: # String
             match = re.search(r'https:\/\/\w*\.?discord(?:app)?.com\/channels\/\d+\/\d+\/(\d+)', reservation, flags=re.I)
             if not match:
                 return await ctx.send(f':x: {ctx.author.mention} The reservation provided is invalid. Make sure you use a message ID or message link')
 
-            rsvp = mclient.rsvpbot.reservations.find_one({'_id': int(match.group(1))})
+            rsvp = mclient.rsvpbot.reservations.find_one({'_id': int(match.group(1)), 'active': True})
 
         if not rsvp:
-            return await ctx.send(f':x: {ctx.author.mention} The provided message is not a reservation')
+            return await ctx.send(f':x: {ctx.author.mention} The provided reservation is either inactive, not not valid')
 
         recurr = db.find_one({'description': rsvp['description']})
         if recurr:
