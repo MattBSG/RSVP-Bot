@@ -688,19 +688,7 @@ class Main(commands.Cog, name='RSVP Bot'):
                         _dict=True
                     )
                 })
-                db.update_one({'_id': payload.message_id}, {
-                    'participants': utility.field_push(
-                        db.find_one({'_id': payload.message_id})['participants'],
-                        {
-                            'user': payload.user_id,
-                            'alias': participant['alias'],
-                            'role': self.EMOJI_MAPPING[emoji],
-                            'status': participant['status']
-                        }
-                    )
-                })
-
-                await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
+                break
 
             user_doc = user_db.find_one({'_id': payload.user_id})
             alias = None if not user_doc else user_doc['alias']
