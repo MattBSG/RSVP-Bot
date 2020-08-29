@@ -678,9 +678,11 @@ class Main(commands.Cog, name='RSVP Bot'):
             emoji += f':{payload.emoji.name}:{payload.emoji.id}>'
 
         if emoji not in self.REACT_EMOJI: return
+        userStatus = None
         if emoji in [constants.EMOJI_DPS, constants.EMOJI_HEALER, constants.EMOJI_TANK]:
             for participant in rsvp_msg['participants']:
                 if participant['user'] != payload.user_id: continue
+                userStatus = participant['status']
                 db.update_one({'_id': payload.message_id}, {
                     'participants': utility.field_pull(
                         db.find_one({'_id': payload.message_id})['participants'],
@@ -699,7 +701,7 @@ class Main(commands.Cog, name='RSVP Bot'):
                         'user': payload.user_id,
                         'alias': alias,
                         'role': self.EMOJI_MAPPING[emoji],
-                        'status': 'confirmed'
+                        'status': 'confirmed' if not userStatus else userStatus
                     }
                 )
             })
