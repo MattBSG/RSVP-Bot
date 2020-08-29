@@ -1,8 +1,23 @@
 # RSVP-Bot
 WoW raid RSVP Discord Bot. This is a commissioned product; that being said, if you encounter a problem please open an issue and I can take a look if this is something you use. This repository has been tested to work on python 3.7.
 
+![](https://cdn.mattbsg.xyz/jicJ5PfB6S.png)
+
+## Commands
+Arguments in brackets [] are optional, while ones in braces {} are required. Do not include the brackets or braces when running commands. This assumes your prefix is the default "?". You can change your prefix in your constants file. `Admin` roles are set during setup.
+
+Command | Permissions | Description
+------- | ----------- | -----------
+`?setup` | Server or Bot Owner | Setup a server to work. Follow the prompts in chat. Must be the server owner or owner of the bot to run this, and it can be rerun at any time to make changes.
+`?rsvp {day} {time} {timezone} {description}` | Admin | Creates a reservation. Day is a day of the week, i.e. thursday. Time is a 12hour time with am/pm, i.e. 1:46pm. Timezone is either an alias set in your constants file (such as "eastern" for America/New_York) or a full timezone string like America/Chicago. Easy way to find timezones [here](http://www.timezoneconverter.com/cgi-bin/findzone.tzc). The description is to tell members what the event the reservation is for.
+`?rsvp alias {mode} {member} [alias]` | Admin |  Sets the alias of a user in a reservation -- embeds only update after there is a change to the rsvp (like if someone leaves, joins, or changes status). Mode will be either "set" or "clear". You must provide the member you are targeting, which is a mentiono or a user id. If you use "set", you'll need to provide what their alias should be, otherwise if you are clearing the alias with "clear" you only need to provide the member
+`?rsvp cancel {message}` | Admin |  Cancel's an event/reservation. If you no longer want an event and would like to cancel it, you can provide either the message id or message link for the reservation
+`?rsvp message {content}` | Admin |  Sets the message used to remind people to join before the raid begins. This reminder is sent at most 15 minutes before the event
+`?rsvp recurr {message} {frequency}` | Admin |  Sets an event to recurr indefinitely, until stopped, on a provided schedule. Message is a reservation in either a message id or message link. Frequency is one of the following: "daily", "weekly", "biweekly"
+`?rsvp recurr stop {message}` | Admin |  Stops an event from recurring in the future. You can provide a message id or message link for any reservation in the recurring series
+
 ## Setup
-The first requirement is already have python3,7 or above and to download files for the bot and install their dependencies. Fire off a git clone in the directory you wish to encompass it like so:
+The first requirement is already have python3.7 or above and to download files for the bot and install their dependencies. Fire off a git clone in the directory you wish to encompass it like so:
 ```sh
 $ git clone https://github.com/MattBSG/RSVP-Bot
 $ cd RSVP-Bot/
