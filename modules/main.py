@@ -662,7 +662,6 @@ class Main(commands.Cog, name='RSVP Bot'):
     async def on_raw_reaction_add(self, payload):
         if payload.member.bot: return
         message = await self.bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
-        await message.remove_reaction(payload.emoji, payload.member)
 
         db = mclient.rsvpbot.reservations
         user_db = mclient.rsvpbot.users
@@ -701,7 +700,7 @@ class Main(commands.Cog, name='RSVP Bot'):
                     )
                 })
 
-                return await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
+                await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
 
             user_doc = user_db.find_one({'_id': payload.user_id})
             alias = None if not user_doc else user_doc['alias']
@@ -716,7 +715,8 @@ class Main(commands.Cog, name='RSVP Bot'):
                     }
                 )
             })
-            return await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
+
+            await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
 
         elif emoji in [constants.EMOJI_LATE, constants.EMOJI_TENTATIVE]:
             for participant in rsvp_msg['participants']:
@@ -744,7 +744,7 @@ class Main(commands.Cog, name='RSVP Bot'):
                     )
                 })
 
-            return await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
+            await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
 
         elif emoji == constants.EMOJI_CANCEL:
             if payload.user_id not in [x['user'] for x in rsvp_msg['participants']]: return
@@ -756,7 +756,9 @@ class Main(commands.Cog, name='RSVP Bot'):
                 )
             })
 
-            return await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
+            await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
+
+        await message.remove_reaction(payload.emoji, payload.member)
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
