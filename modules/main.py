@@ -362,7 +362,7 @@ class Main(commands.Cog, name='RSVP Bot'):
 
         rsvp_event = {
             'host': ctx.author if not recurr else recurr['host'],
-            'channel': ctx.channel.id if not recurr else recurr['channel'],
+            'channel': mclient.rsvpbot.config.find_one({'_id': ctx.guild.id})['rsvp_channel'] if not recurr else recurr['channel'],
             'guild': ctx.guild.id if not recurr else recurr['guild'],
             'date': event_start,
             'timezone': utility.timezone_alias(tz),
