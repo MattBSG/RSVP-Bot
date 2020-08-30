@@ -44,7 +44,7 @@ class Background(commands.Cog):
 
                     elif user['role'] == 'healer':
                         healers += 1
-                    
+
                     elif user['role'] == 'dps':
                         dps += 1
 
@@ -657,6 +657,19 @@ class Main(commands.Cog, name='RSVP Bot'):
         await rsvp_message.edit(embed=embed)
         await rsvp_message.clear_reactions()
         await ctx.send(f':white_check_mark: {ctx.author.mention} Success! That event has been canceled')
+
+    @commands.Cog.listener()
+    async def on_raw_message_delete(self, payload):
+        db = mclient.rsvpbot.reservations
+        if db.find_one({'_id': payload.message_id}):
+            config = mclient.rsvpbot.config.find_one({'_id': payload.guild_id})
+            admin_channel = self.bot.get_channel(config['admin_channel'])
+            await admin_channel.send(f':bangbang: An RSVP message was deleted from <#{config["rsvp_channel"]}> and has been canceled! Please use the `rsvp cancel` command in the future instead!')
+            mclient.rsvpbot.reservations.update_one({'_id': payload.message_id}, {
+                '$set': {
+                    'active': False
+                }
+            })
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
