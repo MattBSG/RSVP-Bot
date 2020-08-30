@@ -750,16 +750,16 @@ class Main(commands.Cog, name='RSVP Bot'):
             await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
 
         elif emoji == constants.EMOJI_CANCEL:
-            if payload.user_id not in [x['user'] for x in rsvp_msg['participants']]: return
-            db.update_one({'_id': payload.message_id}, {
-                'participants': utility.field_pull(
-                    db.find_one({'_id': payload.message_id})['participants'],
-                    ['user', payload.user_id],
-                    _dict=True
-                )
-            })
+            if payload.user_id in [x['user'] for x in rsvp_msg['participants']]:
+                db.update_one({'_id': payload.message_id}, {
+                    'participants': utility.field_pull(
+                        db.find_one({'_id': payload.message_id})['participants'],
+                        ['user', payload.user_id],
+                        _dict=True
+                    )
+                })
 
-            await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
+                await self._rsvp_embed(self.bot, payload.guild_id, rsvp=payload.message_id)
 
         await message.remove_reaction(payload.emoji, payload.member)
 
