@@ -678,7 +678,7 @@ class Main(commands.Cog, name='RSVP Bot'):
 
         db = mclient.rsvpbot.reservations
         user_db = mclient.rsvpbot.users
-        rsvp_msg = db.find_one({'_id': payload.message_id})
+        rsvp_msg = db.find_one({'_id': payload.message_id, 'active': True})
         if not rsvp_msg:
             return
 
