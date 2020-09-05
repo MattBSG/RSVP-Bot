@@ -31,8 +31,8 @@ class Background(commands.Cog):
             current_date = pendulum.now(utility.timezone_alias(rsvp['timezone']))
 
             date_diff = start_date - current_date
-            human_diff = current_date.add(seconds=date_diff.seconds).diff_for_humans()
-            if date_diff.seconds <= 7200 and not rsvp['admin_reminder']: # 2 hours prior, and first notification
+            human_diff = current_date.add(seconds=date_diff.in_seconds()).diff_for_humans()
+            if date_diff.in_seconds() <= 7200 and not rsvp['admin_reminder']: # 2 hours prior, and first notification
                 participant_count = len(rsvp["participants"])
                 tanks = 0
                 healers = 0
@@ -70,7 +70,7 @@ class Background(commands.Cog):
                         'admin_reminder': True
                     }})
 
-            if date_diff.seconds <= 900 and not rsvp['user_reminder']: # 15 minutes prior, and first notification
+            if date_diff.in_seconds() <= 900 and not rsvp['user_reminder']: # 15 minutes prior, and first notification
                 rsvp_channel = self.bot.get_channel(config['rsvp_channel'])
                 users = [f'<@!{u["user"]}>' for u in rsvp['participants']]
                 await rsvp_channel.send(f':bellhop: Event starting soon! {mclient.rsvpbot.config.find_one({"_id": rsvp["guild"]})["invite_message"]}\n\n{", ".join(users)}')
@@ -79,7 +79,7 @@ class Background(commands.Cog):
                     'user_reminder': True
                 }})
 
-            if date_diff.seconds <= 0:
+            if date_diff.in_seconds() <= 0:
                 try:
                     rsvp_message = await self.bot.get_channel(rsvp['channel']).fetch_message(rsvp['_id'])
 
